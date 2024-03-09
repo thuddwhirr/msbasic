@@ -1,23 +1,24 @@
 .setcpu "65C02"
 .segment "WOZMON"
 
-XAML		= $24                   ; Last "opened" location Low
-XAMH		= $25                   ; Last "opened" location High
-STL		= $26                   ; Store address Low
-STH		= $27                   ; Store address High
-L		= $28                   ; Hex value parsing Low
-H		= $29                   ; Hex value parsing High
-YSAV		= $2A                   ; Used to see if hex value is given
-MODE		= $2B                   ; $00=XAM, $7F=STOR, $AE=BLOCK XAM
+XAML            = $24                   ; Last "opened" location Low
+XAMH            = $25                   ; Last "opened" location High
+STL             = $26                   ; Store address Low
+STH             = $27                   ; Store address High
+L               = $28                   ; Hex value parsing Low
+H               = $29                   ; Hex value parsing High
+YSAV            = $2A                   ; Used to see if hex value is given
+MODE            = $2B                   ; $00=XAM, $7F=STOR, $AE=BLOCK XAM
 
-IN		= $0200			; Input buffer
+IN              = $0200                 ; Input buffer
 
 RESET:
                 CLD                     ; Clear decimal arithmetic mode.
+                JSR     INIT_BUFFER
                 CLI
                 LDA     #$1F            ; 8-N-1, 19200 bps
                 STA     ACIA_CTRL
-                LDY     #$8B            ; No parity, no echo, no interrupts.
+                LDY     #$89            ; No parity, no echo, rx interrupts.
                 STY     ACIA_CMD
 
 NOTCR:
@@ -43,12 +44,9 @@ BACKSPACE:      DEY                     ; Back up text index.
                 BMI     GETLINE         ; Beyond start of line, reinitialize.
 
 NEXTCHAR:
-                LDA     ACIA_STATUS     ; Check status.
-                AND     #$08            ; Key ready?
-                BEQ     NEXTCHAR        ; Loop until ready.
-                LDA     ACIA_DATA       ; Load character. B7 will be '0'.
+                JSR     CHRIN
+                BCC     NEXTCHAR
                 STA     IN,Y            ; Add to text buffer.
-                JSR     ECHO            ; Display character.
                 CMP     #$0D            ; CR?
                 BNE     NOTCR           ; No.
 

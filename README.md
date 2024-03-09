@@ -1,3 +1,24 @@
+# Microsoft BASIC for the Ben Eater 6502 project
+
+This code was forked from [mist64/msbasic](https://github.com/mist64/msbasic) and I've added the code from my YouTube videos describing how to port MSBASIC to my 6502 project. The latest commit will match the code from the latest video.
+
+But if you're following along with earlier videos, the "code" link below will take you to the code from that video:
+
+|                                | Video                                                    | Code               |
+|--------------------------------|----------------------------------------------------------|--------------------|
+| ![Video thumbnail][thumbnail1] | [Running MSBASIC on my breadboard 6502 computer][video1] | [a15c8e0][commit1] |
+| ![Video thumbnail][thumbnail2] | [How input buffering works][video2]                      | [master][commit2]  |
+
+[thumbnail1]: https://i.ytimg.com/vi/XlbPnihCM0E/mqdefault.jpg
+[video1]: https://youtu.be/XlbPnihCM0E
+[commit1]: https://github.com/beneater/msbasic/tree/a15c8e0fdf620c800913cbb709df4042ab5c8dad
+
+[thumbnail2]: https://i.ytimg.com/vi/mpIFag8zSWo/mqdefault.jpg
+[video2]: https://youtu.be/mpIFag8zSWo
+[commit2]: https://github.com/beneater/msbasic/tree/master
+
+Below is the original README:
+
 # Microsoft BASIC for 6502
 
 This is a single integrated assembly source tree that can generate nine different versions of Microsoft BASIC for 6502.
