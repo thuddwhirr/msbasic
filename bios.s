@@ -15,6 +15,8 @@ ACIA_DATA       = $5000
 ACIA_STATUS     = $5001
 ACIA_CMD        = $5002
 ACIA_CTRL       = $5003
+PORTA           = $6001
+DDRA            = $6003
 
 LOAD:
                 rts
@@ -35,6 +37,15 @@ CHRIN:
                 beq     @no_keypressed
                 jsr     READ_BUFFER
                 jsr     CHROUT                  ; echo
+                pha
+                jsr     BUFFER_SIZE
+                cmp     #$B0
+                bcs     @mostly_full
+                lda     #$fe
+                and     PORTA
+                sta     PORTA
+@mostly_full:
+                pla
                 plx
                 sec
                 rts
@@ -62,6 +73,11 @@ CHROUT:
 INIT_BUFFER:
                 lda READ_PTR
                 sta WRITE_PTR
+                lda #$01
+                sta DDRA
+                lda #$fe
+                and PORTA
+                sta PORTA
                 rts
 
 ; Write a character (from the A register) to the circular input buffer
@@ -97,6 +113,13 @@ IRQ_HANDLER:
                 ; For now, assume the only source of interrupts is incoming data
                 lda     ACIA_DATA
                 jsr     WRITE_BUFFER
+                jsr     BUFFER_SIZE
+                cmp     #$F0
+                bcc     @not_full
+                lda     #$01
+                ora     PORTA
+                sta     PORTA
+@not_full:
                 plx
                 pla
                 rti

@@ -7,15 +7,22 @@ But if you're following along with earlier videos, the "code" link below will ta
 |                                | Video                                                    | Code               |
 |--------------------------------|----------------------------------------------------------|--------------------|
 | ![Video thumbnail][thumbnail1] | [Running MSBASIC on my breadboard 6502 computer][video1] | [a15c8e0][commit1] |
-| ![Video thumbnail][thumbnail2] | [How input buffering works][video2]                      | [master][commit2]  |
+| ![Video thumbnail][thumbnail2] | [How input buffering works][video2]                      | [54ef9ac][commit2]  |
+| ![Video thumbnail][thumbnail3] | [RS232 flow control][video3]                      | [master][commit3]  |
 
 [thumbnail1]: https://i.ytimg.com/vi/XlbPnihCM0E/mqdefault.jpg
 [video1]: https://youtu.be/XlbPnihCM0E
 [commit1]: https://github.com/beneater/msbasic/tree/a15c8e0fdf620c800913cbb709df4042ab5c8dad
 
+
 [thumbnail2]: https://i.ytimg.com/vi/mpIFag8zSWo/mqdefault.jpg
 [video2]: https://youtu.be/mpIFag8zSWo
-[commit2]: https://github.com/beneater/msbasic/tree/master
+[commit2]: https://github.com/beneater/msbasic/tree/54ef9ac51f4134ac537c7011802a2f81112a242b
+
+
+[thumbnail3]: https://i.ytimg.com/vi/LuKMVXWD7FY/mqdefault.jpg
+[video3]: https://youtu.be/LuKMVXWD7FY
+[commit3]: https://github.com/beneater/msbasic/tree/master
 
 Below is the original README:
 
