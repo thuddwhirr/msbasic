@@ -9,7 +9,8 @@ But if you're following along with earlier videos, the "code" link below will ta
 | ![Video thumbnail][thumbnail1] | [Running MSBASIC on my breadboard 6502 computer][video1] | [a15c8e0][commit1] |
 | ![Video thumbnail][thumbnail2] | [How input buffering works][video2]                      | [54ef9ac][commit2] |
 | ![Video thumbnail][thumbnail2] | [RS232 flow control][video3]                             | [c21542e][commit3] |
-| ![Video thumbnail][thumbnail4] | [Hacking Microsoft BASIC][video4]                        | [master][commit4]  |
+| ![Video thumbnail][thumbnail4] | [Hacking Microsoft BASIC][video4]                        | [f41cac4][commit4]  |
+| ![Video thumbnail][thumbnail5] | [Reverse engineering Microsoft BASIC][video5]            | [master][commit5]  |
 
 [thumbnail1]: https://i.ytimg.com/vi/XlbPnihCM0E/mqdefault.jpg
 [video1]: https://youtu.be/XlbPnihCM0E
@@ -27,7 +28,11 @@ But if you're following along with earlier videos, the "code" link below will ta
 
 [thumbnail4]: https://i.ytimg.com/vi/gOwi2p1pzVM/mqdefault.jpg
 [video4]: https://youtu.be/gOwi2p1pzVM
-[commit4]: https://github.com/beneater/msbasic/tree/master
+[commit4]: https://github.com/beneater/msbasic/tree/f41cac4b064fa7c0bd20c8c33387b2a1c32a8da1
+
+[thumbnail5]: https://i.ytimg.com/vi/aVVKgwr_SfQ/mqdefault.jpg
+[video5]: https://youtu.be/aVVKgwr_SfQ
+[commit5]: https://github.com/beneater/msbasic/tree/master
 
 Below is the original README:
 

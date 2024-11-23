@@ -103,8 +103,24 @@ lcd_instruction:
   rts
 
 LCDPRINT:
-  jsr GETBYT
-  txa
+  jsr FRMEVL
+  bit VALTYP
+  bmi lcd_print
+  jsr FOUT
+  jsr STRLIT
+lcd_print:
+  jsr FREFAC
+  tax
+  ldy #0
+lcd_print_loop:
+  lda (INDEX),y
+  jsr lcd_print_char
+  iny
+  dex
+  bne lcd_print_loop
+  rts
+
+lcd_print_char:
   jsr lcd_wait
   pha
   lsr
