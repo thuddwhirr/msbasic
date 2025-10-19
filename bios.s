@@ -124,7 +124,7 @@ IRQ_HANDLER:
                 pla
                 rti
 
-.include "wozmon.s"
+; Note: wozmon.s removed - Waffle2e kernel provides its own Woz Monitor
 
 .segment "RESETVEC"
                 .word   $0F00           ; NMI vector
