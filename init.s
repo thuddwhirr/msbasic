@@ -262,6 +262,12 @@ L40D7:
         cmp     #$A0
         beq     L40FA
 .endif
+.ifdef WAFFLE2E
+; Waffle2e: hard RAM top limit is $4000 (I/O space starts here)
+        lda     LINNUM+1
+        cmp     #$40
+        beq     L40FA
+.endif
 L40DD:
 .ifdef CONFIG_2
         lda     #$55 ; 01010101 / 10101010
