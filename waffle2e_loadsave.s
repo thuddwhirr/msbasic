@@ -1,7 +1,10 @@
 ; Waffle2e LOAD/SAVE implementation
 ; Saves/loads tokenized BASIC programs to/from FAT32 filesystem
 ;
-; Format: Binary dump of tokenized program (TXTTAB to VARTAB)
+; LOAD "filename"   - load tokenized binary program
+; SAVE "filename"   - save tokenized binary program
+;
+; Binary format: Memory dump from TXTTAB to VARTAB
 ; After LOAD, FIX_LINKS rebuilds the line pointers
 
 ; Constants (must match simple_fat32.s)
@@ -103,7 +106,7 @@ QT_SAVE_ERR:
 ; LOAD - Load BASIC program from file
 ;
 ; Syntax: LOAD "FILENAME"
-; Loads tokenized program to TXTTAB, updates VARTAB, fixes links
+; Loads tokenized program to TXTTAB, updates VARTAB
 ;-----------------------------------------------------------------------------
 LOAD:
         ; Evaluate string expression (filename)
@@ -112,9 +115,10 @@ LOAD:
 
         ; Check for empty filename
         tax
-        beq     @load_error
+        beq     load_error
 
-        ; Copy filename to cmd_buffer for FAT32 routines
+        ; Copy filename to cmd_buffer IMMEDIATELY before any other FRMEVL
+        ; (FRMEVL can cause string garbage collection which moves strings)
         ldy     #0
 @copy_name:
         lda     (INDEX),y
@@ -127,13 +131,13 @@ LOAD:
 
         ; Initialize FAT32
         jsr     fat32_init
-        bcc     @load_error
+        bcc     load_error
 
         ; Resolve path to file (X=0, filename at cmd_buffer)
         ldx     #0
         lda     #TYPE_FILE
         jsr     fat32_resolve_path
-        bcc     @load_error
+        bcc     load_error
 
         ; Initialize file handle for reading
         jsr     fat32_init_file_handle
@@ -178,7 +182,7 @@ LOAD:
         ; Fix line links and reset variables (tail call - doesn't return)
         jmp     FIX_LINKS
 
-@load_error:
+load_error:
         lda     #<QT_LOAD_ERR
         ldy     #>QT_LOAD_ERR
         jsr     STROUT
@@ -187,10 +191,10 @@ LOAD:
 QT_LOADED:
         .byte   $0D, $0A, "LOADED", $0D, $0A, $00
 QT_LOAD_ERR:
-        .byte   "?LOAD ERROR", $0D, $00
+        .byte   "?LOAD ERROR", $0D, $0A, $00
 
 ;-----------------------------------------------------------------------------
-; load_copy_sector - Copy current sector to memory at load_ptr
+; load_copy_sector - Copy current sector to memory at DEST
 ;
 ; Copies up to 512 bytes from sector_buffer, limited by bytes_remaining
 ;-----------------------------------------------------------------------------
@@ -236,7 +240,6 @@ load_copy_sector:
 @no_ptr_carry:
 
         ; Decrement bytes remaining (32-bit)
-        ; Simple 32-bit decrement: subtract 1 from 4-byte value
         lda     fat32_file_bytes_remaining
         sec
         sbc     #1
@@ -264,6 +267,6 @@ load_copy_sector:
 ; Data
 ;-----------------------------------------------------------------------------
 .segment "KERNELDATA"
-load_offset:    .res 2          ; Offset within sector (0-511)
-save_len:       .res 1          ; Saved filename length
-save_index:     .res 2          ; Saved INDEX pointer
+load_offset:      .res 2        ; Offset within sector (0-511)
+save_len:         .res 1        ; Saved filename length
+save_index:       .res 2        ; Saved INDEX pointer

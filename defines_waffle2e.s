@@ -62,8 +62,8 @@ STACK := $0100
 STACK2 := STACK
 .endif
 
-; INPUTBUFFER will be automatically placed in zero page by MS BASIC
-; But INPUTBUFFERX still needs to be defined (high byte = $00 for zero page)
+; INPUTBUFFER is automatically placed in zero page by MS BASIC
+; High byte is $00 for zero page
 INPUTBUFFERX = $00
 
 CR=13
