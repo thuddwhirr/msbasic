@@ -15,3 +15,6 @@
 .ifdef SYM1
 .include "sym1_loadsave.s"
 .endif
+.ifdef WAFFLE2E
+.include "waffle2e_loadsave.s"
+.endif
