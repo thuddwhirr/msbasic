@@ -264,6 +264,84 @@ load_copy_sector:
         rts
 
 ;-----------------------------------------------------------------------------
+; FEED - Feed text file to BASIC input
+;
+; Syntax: FEED "FILENAME"
+; Opens a text file and redirects BASIC's input to read from it.
+; Lines are executed as if typed at the keyboard.
+; When file is exhausted, input returns to normal keyboard/serial.
+;-----------------------------------------------------------------------------
+; Note: chrin_vector, file_getc, and feed_sector_offset are defined in
+; msbasic_bios.s which is included later in the same compilation unit
+
+FEED:
+        ; Evaluate string expression (filename)
+        jsr     FRMEVL
+        jsr     FRESTR          ; A=length, INDEX=pointer to string
+
+        ; Check for empty filename
+        tax
+        beq     @feed_error
+
+        ; Copy filename to cmd_buffer IMMEDIATELY before any other FRMEVL
+        ldy     #0
+@copy_name:
+        lda     (INDEX),y
+        sta     cmd_buffer,y
+        iny
+        dex
+        bne     @copy_name
+        lda     #0              ; Null terminate
+        sta     cmd_buffer,y
+
+        ; Initialize FAT32
+        jsr     fat32_init
+        bcc     @feed_error
+
+        ; Resolve path to file (X=0, filename at cmd_buffer)
+        ldx     #0
+        lda     #TYPE_FILE
+        jsr     fat32_resolve_path
+        bcc     @feed_error
+
+        ; Initialize file handle for reading
+        jsr     fat32_init_file_handle
+
+        ; Read first sector into buffer
+        jsr     fat32_read_file_sector
+        bcc     @feed_error
+
+        ; Initialize sector offset to 0
+        lda     #0
+        sta     feed_sector_offset
+        sta     feed_sector_offset+1
+
+        ; Redirect CHRIN to file_getc
+        lda     #<file_getc
+        sta     chrin_vector
+        lda     #>file_getc
+        sta     chrin_vector+1
+
+        ; Print message
+        lda     #<QT_FEEDING
+        ldy     #>QT_FEEDING
+        jsr     STROUT
+
+        ; Return to BASIC - subsequent CHRIN calls will read from file
+        rts
+
+@feed_error:
+        lda     #<QT_FEED_ERR
+        ldy     #>QT_FEED_ERR
+        jsr     STROUT
+        rts
+
+QT_FEEDING:
+        .byte   "FEEDING...", $0D, $0A, $00
+QT_FEED_ERR:
+        .byte   "?FEED ERROR", $0D, $0A, $00
+
+;-----------------------------------------------------------------------------
 ; Data
 ;-----------------------------------------------------------------------------
 .segment "KERNELDATA"

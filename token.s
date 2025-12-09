@@ -43,6 +43,9 @@
 .ifndef KBD
 		keyword_rts "LOAD", LOAD
 		keyword_rts "SAVE", SAVE
+.ifdef WAFFLE2E
+		keyword_rts "FEED", FEED
+.endif
 .endif
 .ifdef CONFIG_CBM_ALL
 		keyword_rts "VERIFY", VERIFY

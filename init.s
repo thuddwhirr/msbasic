@@ -20,6 +20,10 @@ PR_WRITTEN_BY:
   .endif
 .endif
 COLD_START:
+.ifdef WAFFLE2E
+        ; Initialize CHRIN vector for FEED command support
+        jsr     init_chrin_vector
+.endif
 .ifdef SYM1
         jsr     ACCESS
 .endif
