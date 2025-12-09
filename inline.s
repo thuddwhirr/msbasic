@@ -12,6 +12,15 @@ L2420:
         jmp     INLIN2
 LB35F:
         jsr     OUTDO
+  .elseif .def(WAFFLE2E)
+        bmi     L2423           ; If X went negative, cancel line
+        ; CHRIN already echoed backspace (moved cursor back)
+        ; Output space-backspace to erase character and reposition
+        lda     #$20
+        jsr     OUTDO
+        lda     #$08
+        jsr     OUTDO
+        jmp     INLIN2
   .else
         bpl     INLIN2
   .endif
@@ -61,6 +70,13 @@ INLINAIM:
         cmp     #$0D
         beq     L2453
     .ifndef CONFIG_NO_LINE_EDITING
+      .ifdef WAFFLE2E
+        ; Check for backspace/delete BEFORE filtering out control chars
+        cmp     #$08 ; BS (backspace)
+        beq     L2420
+        cmp     #$7F ; DEL
+        beq     L2420
+      .endif
         cmp     #$20
       .ifdef AIM65
         bcc     L244E
@@ -84,6 +100,10 @@ INLINAIM:
         beq     L2423
       .ifdef MICROTAN
         cmp     #$7F ; DEL
+      .elseif .def(WAFFLE2E)
+        ; Backspace/DEL already handled above, before < $20 filter
+        ; Keep underscore for compatibility
+        cmp     #$5F ; _
       .else
         cmp     #$5F ; _
       .endif
