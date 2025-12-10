@@ -45,6 +45,7 @@
 		keyword_rts "SAVE", SAVE
 .ifdef WAFFLE2E
 		keyword_rts "FEED", FEED
+		keyword_rts "QUIT", QUIT
 .endif
 .endif
 .ifdef CONFIG_CBM_ALL

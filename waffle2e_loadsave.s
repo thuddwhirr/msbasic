@@ -14,6 +14,7 @@ TYPE_FILE = $00
 .import fat32_init, fat32_parse_filename, fat32_resolve_path
 .import fat32_init_file_handle, fat32_read_file_sector, fat32_advance_file_position
 .import fat32_create_file
+.import fat32_resolve_parent_path, path_working_cluster, current_dir_cluster
 .import fat32_file_size, fat32_file_bytes_remaining
 .importzp fat32_ptr
 .import sector_buffer
@@ -34,7 +35,9 @@ SAVE:
 
         ; Check for empty filename
         tax
-        beq     @save_error
+        bne     @have_filename
+        jmp     @save_error
+@have_filename:
 
         ; Save critical BASIC zero page before FAT32 operations
         ; INDEX will be clobbered, so save the string info first
@@ -57,10 +60,41 @@ SAVE:
 
         ; Initialize FAT32
         jsr     fat32_init
-        bcc     @save_error
+        bcs     @init_ok
+        jmp     @save_error
+@init_ok:
 
-        ; Parse filename (X=0, filename at cmd_buffer)
-        ldx     #0
+        ; Save current directory (will restore after file creation)
+        lda     current_dir_cluster
+        sta     saved_dir_cluster
+        lda     current_dir_cluster+1
+        sta     saved_dir_cluster+1
+        lda     current_dir_cluster+2
+        sta     saved_dir_cluster+2
+        lda     current_dir_cluster+3
+        sta     saved_dir_cluster+3
+
+        ; Resolve parent path (e.g., "basic/colorbar.bas" -> navigate to "basic")
+        ldx     #0                      ; Path starts at offset 0 in cmd_buffer
+        jsr     fat32_resolve_parent_path
+        bcs     @parent_ok
+        ; Parent path error - restore directory and fail
+        jmp     @save_restore_error
+
+@parent_ok:
+        ; X now points to final component (filename) in cmd_buffer
+        ; path_working_cluster has parent directory
+        ; Set current_dir_cluster to parent for create operation
+        lda     path_working_cluster
+        sta     current_dir_cluster
+        lda     path_working_cluster+1
+        sta     current_dir_cluster+1
+        lda     path_working_cluster+2
+        sta     current_dir_cluster+2
+        lda     path_working_cluster+3
+        sta     current_dir_cluster+3
+
+        ; Parse final component to 8.3 format
         jsr     fat32_parse_filename
 
         ; Calculate program size: VARTAB - TXTTAB
@@ -83,13 +117,34 @@ SAVE:
 
         ; Create file (fat32_create_file writes from fat32_ptr)
         jsr     fat32_create_file
-        bcc     @save_error
+        bcc     @save_restore_error
+
+        ; Restore original directory
+        lda     saved_dir_cluster
+        sta     current_dir_cluster
+        lda     saved_dir_cluster+1
+        sta     current_dir_cluster+1
+        lda     saved_dir_cluster+2
+        sta     current_dir_cluster+2
+        lda     saved_dir_cluster+3
+        sta     current_dir_cluster+3
 
         ; Print success message
         lda     #<QT_SAVED
         ldy     #>QT_SAVED
         jsr     STROUT
         rts
+
+@save_restore_error:
+        ; Restore original directory before error
+        lda     saved_dir_cluster
+        sta     current_dir_cluster
+        lda     saved_dir_cluster+1
+        sta     current_dir_cluster+1
+        lda     saved_dir_cluster+2
+        sta     current_dir_cluster+2
+        lda     saved_dir_cluster+3
+        sta     current_dir_cluster+3
 
 @save_error:
         lda     #<QT_SAVE_ERR
@@ -342,9 +397,21 @@ QT_FEED_ERR:
         .byte   "?FEED ERROR", $0D, $0A, $00
 
 ;-----------------------------------------------------------------------------
+; QUIT - Exit BASIC and return to kernel shell
+;
+; Syntax: QUIT
+; Jumps directly to the kernel's command loop
+;-----------------------------------------------------------------------------
+.import cli_main_loop
+
+QUIT:
+        jmp     cli_main_loop
+
+;-----------------------------------------------------------------------------
 ; Data
 ;-----------------------------------------------------------------------------
 .segment "KERNELDATA"
-load_offset:      .res 2        ; Offset within sector (0-511)
-save_len:         .res 1        ; Saved filename length
-save_index:       .res 2        ; Saved INDEX pointer
+load_offset:        .res 2        ; Offset within sector (0-511)
+save_len:           .res 1        ; Saved filename length
+save_index:         .res 2        ; Saved INDEX pointer
+saved_dir_cluster:  .res 4        ; Saved current directory for SAVE

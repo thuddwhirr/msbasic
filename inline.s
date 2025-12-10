@@ -69,6 +69,10 @@ INLINAIM:
     .endif
         cmp     #$0D
         beq     L2453
+      .ifdef WAFFLE2E
+        cmp     #$0A            ; LF also ends line (Unix-style or CR+LF files)
+        beq     L2453
+      .endif
     .ifndef CONFIG_NO_LINE_EDITING
       .ifdef WAFFLE2E
         ; Check for backspace/delete BEFORE filtering out control chars
