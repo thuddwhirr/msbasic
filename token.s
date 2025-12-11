@@ -46,6 +46,14 @@
 .ifdef WAFFLE2E
 		keyword_rts "FEED", FEED
 		keyword_rts "QUIT", QUIT
+		; Graphics statements (short names to fit 256-byte keyword table limit)
+		keyword_rts "SCR", SCREEN_CMD
+		keyword_rts "CLS", CLS_CMD
+		keyword_rts "CLR", COLOR_CMD
+		keyword_rts "PSET", PSET_CMD
+		keyword_rts "LOC", LOCATE_CMD
+		keyword_rts "LINE", LINE_CMD
+		keyword_rts "BOX", BOX_CMD
 .endif
 .endif
 .ifdef CONFIG_CBM_ALL
@@ -160,6 +168,12 @@ UNFNC_ATN:
 		keyword_addr "LEFT$", LEFTSTR, TOKEN_LEFTSTR
 		keyword_addr "RIGHT$", RIGHTSTR
 		keyword_addr "MID$", MIDSTR
+.ifdef WAFFLE2E
+		; Graphics functions - disabled due to 256-byte keyword table limit
+;		keyword_addr "POINT", POINT_FN
+;		keyword_addr "CSRLIN", CSRLIN_FN
+;		keyword_addr "CSRCOL", CSRCOL_FN
+.endif
 .ifdef CONFIG_2
 		keyword	"GO", TOKEN_GO
 .endif
