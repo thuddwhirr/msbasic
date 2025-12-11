@@ -1,5 +1,5 @@
 ; Waffle2e BASIC Graphics Extensions
-; Implements: SCR, CLS, CLR, PSET, LOC, LINE, BOX
+; Implements: SCR, CLS, CLR, PSET, LOC, LINE, BOX, CIRC
 
 ; Include hardware definitions for video registers
 ; Path is relative to msbasic directory where this file lives
@@ -41,6 +41,14 @@ gfx_save_x0:    .res 2
 gfx_save_y0:    .res 2
 gfx_save_x1:    .res 2
 gfx_save_y1:    .res 2
+
+; Circle algorithm variables
+gfx_cx:         .res 2      ; Circle center X (16-bit)
+gfx_cy:         .res 1      ; Circle center Y (8-bit, max 239)
+gfx_radius:     .res 2      ; Circle radius (16-bit)
+gfx_circ_x:     .res 2      ; Current circle X offset (16-bit)
+gfx_circ_y:     .res 2      ; Current circle Y offset (16-bit)
+gfx_circ_err:   .res 2      ; Circle error term (16-bit, signed)
 
 .segment "BASICBIOS"
 
@@ -713,6 +721,591 @@ draw_filled_box:
         ; Restore outline color
         pla
         sta     gfx_color
+        rts
+
+; =============================================================================
+; CIR cx,cy,r[,c[,fill]] - Draw circle centered at (cx,cy) with radius r
+; Uses midpoint circle algorithm (Bresenham's circle)
+; Usage: CIR 160,120,50 or CIR 160,120,50,15 or CIR 160,120,50,15,4
+; =============================================================================
+CIRCLE_CMD:
+        ; Initialize fill flag
+        lda     #0
+        sta     gfx_has_fill
+
+        ; Get center X (16-bit)
+        jsr     FRMNUM
+        jsr     GETADR
+        lda     LINNUM
+        sta     gfx_cx
+        lda     LINNUM+1
+        sta     gfx_cx+1
+
+        ; Get center Y (8-bit for 320x240 mode)
+        jsr     CHKCOM
+        jsr     GETBYT
+        stx     gfx_cy
+
+        ; Get radius (16-bit)
+        jsr     CHKCOM
+        jsr     FRMNUM
+        jsr     GETADR
+        lda     LINNUM
+        sta     gfx_radius
+        lda     LINNUM+1
+        sta     gfx_radius+1
+
+        ; Check for optional color
+        jsr     CHRGOT
+        cmp     #','
+        bne     @draw_circle
+        jsr     CHRGET
+        jsr     GETBYT
+        stx     gfx_color
+
+        ; Check for optional fill color
+        jsr     CHRGOT
+        cmp     #','
+        bne     @draw_circle
+        jsr     CHRGET
+        jsr     GETBYT
+        stx     gfx_fill
+        lda     #1
+        sta     gfx_has_fill
+
+@draw_circle:
+        ; Initialize: x = radius, y = 0, err = 0
+        lda     gfx_radius
+        sta     gfx_circ_x
+        lda     gfx_radius+1
+        sta     gfx_circ_x+1
+
+        lda     #0
+        sta     gfx_circ_y
+        sta     gfx_circ_y+1
+        sta     gfx_circ_err
+        sta     gfx_circ_err+1
+
+@circle_loop:
+        ; If fill enabled, draw fill lines (outline drawn in second pass)
+        lda     gfx_has_fill
+        beq     @draw_outline
+        jsr     circle_fill_lines
+        jmp     @next_iter
+
+@draw_outline:
+        ; Plot 8 symmetric points (outline) - only when not filling
+        jsr     circle_plot_octants
+
+@next_iter:
+        ; Check if done: y > x (16-bit compare)
+        lda     gfx_circ_x+1
+        cmp     gfx_circ_y+1
+        bcc     @exit_circle        ; x_hi < y_hi, done
+        bne     @not_done           ; x_hi > y_hi, continue
+        lda     gfx_circ_x
+        cmp     gfx_circ_y
+        bcc     @exit_circle        ; x < y, done
+        bra     @not_done
+
+@exit_circle:
+        jmp     @circle_done
+
+@not_done:
+        ; y++
+        inc     gfx_circ_y
+        bne     @no_y_carry
+        inc     gfx_circ_y+1
+@no_y_carry:
+
+        ; err += 2*y + 1 (add y twice plus 1)
+        ; First add y (16-bit)
+        lda     gfx_circ_err
+        clc
+        adc     gfx_circ_y
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        adc     gfx_circ_y+1
+        sta     gfx_circ_err+1
+        ; Add y again
+        lda     gfx_circ_err
+        clc
+        adc     gfx_circ_y
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        adc     gfx_circ_y+1
+        sta     gfx_circ_err+1
+        ; Add 1
+        inc     gfx_circ_err
+        bne     @check_err
+        inc     gfx_circ_err+1
+
+@check_err:
+        ; if err > 0, then x--, err -= 2*x + 1
+        ; Check sign of err (16-bit signed)
+        lda     gfx_circ_err+1
+        bmi     @circle_loop        ; err < 0, continue
+
+        ; err > 0: x--
+        lda     gfx_circ_x
+        bne     @dec_x_no_borrow
+        dec     gfx_circ_x+1
+@dec_x_no_borrow:
+        dec     gfx_circ_x
+
+        ; err -= 2*x + 1
+        ; Subtract x twice and 1
+        lda     gfx_circ_err
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        sbc     gfx_circ_x+1
+        sta     gfx_circ_err+1
+        ; Subtract x again
+        lda     gfx_circ_err
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        sbc     gfx_circ_x+1
+        sta     gfx_circ_err+1
+        ; Subtract 1
+        lda     gfx_circ_err
+        bne     @sub1_no_borrow
+        dec     gfx_circ_err+1
+@sub1_no_borrow:
+        dec     gfx_circ_err
+
+        jmp     @circle_loop
+
+@circle_done:
+        ; If fill was enabled, now draw outline in second pass
+        lda     gfx_has_fill
+        beq     @jmp_really_done
+        jmp     @start_outline_pass
+
+@jmp_really_done:
+        jmp     @really_done
+
+@start_outline_pass:
+        ; Reset for outline pass
+        lda     gfx_radius
+        sta     gfx_circ_x
+        lda     gfx_radius+1
+        sta     gfx_circ_x+1
+        lda     #0
+        sta     gfx_circ_y
+        sta     gfx_circ_y+1
+        sta     gfx_circ_err
+        sta     gfx_circ_err+1
+
+@outline_loop:
+        ; Plot 8 symmetric outline points
+        jsr     circle_plot_octants
+
+        ; Check if done: y > x
+        lda     gfx_circ_x+1
+        cmp     gfx_circ_y+1
+        bcc     @exit_outline
+        bne     @outline_not_done
+        lda     gfx_circ_x
+        cmp     gfx_circ_y
+        bcs     @outline_not_done
+@exit_outline:
+        jmp     @really_done
+
+@outline_not_done:
+        ; y++
+        inc     gfx_circ_y
+        bne     @outline_no_y_carry
+        inc     gfx_circ_y+1
+@outline_no_y_carry:
+
+        ; err += 2*y + 1
+        lda     gfx_circ_err
+        clc
+        adc     gfx_circ_y
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        adc     gfx_circ_y+1
+        sta     gfx_circ_err+1
+        lda     gfx_circ_err
+        clc
+        adc     gfx_circ_y
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        adc     gfx_circ_y+1
+        sta     gfx_circ_err+1
+        inc     gfx_circ_err
+        bne     @outline_check_err
+        inc     gfx_circ_err+1
+
+@outline_check_err:
+        lda     gfx_circ_err+1
+        bmi     @outline_loop
+
+        ; x--
+        lda     gfx_circ_x
+        bne     @outline_dec_x
+        dec     gfx_circ_x+1
+@outline_dec_x:
+        dec     gfx_circ_x
+
+        ; err -= 2*x + 1
+        lda     gfx_circ_err
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        sbc     gfx_circ_x+1
+        sta     gfx_circ_err+1
+        lda     gfx_circ_err
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_circ_err
+        lda     gfx_circ_err+1
+        sbc     gfx_circ_x+1
+        sta     gfx_circ_err+1
+        lda     gfx_circ_err
+        bne     @outline_sub1
+        dec     gfx_circ_err+1
+@outline_sub1:
+        dec     gfx_circ_err
+
+        jmp     @outline_loop
+
+@really_done:
+        rts
+
+; =============================================================================
+; Draw horizontal fill lines for filled circle
+; Draws 4 lines: at cy+y, cy-y, cy+x, cy-x (from -offset to +offset)
+; Uses gfx_fill color, preserves gfx_color for outline
+; =============================================================================
+circle_fill_lines:
+        ; Save outline color, use fill color
+        lda     gfx_color
+        pha
+        lda     gfx_fill
+        sta     gfx_color
+
+        ; Line 1: horizontal line at cy + y, from cx-x to cx+x
+        lda     gfx_cy
+        clc
+        adc     gfx_circ_y
+        bcs     @skip_line1         ; Y overflow
+        sta     gfx_y0
+        lda     #0
+        sta     gfx_y0+1
+        ; x0 = cx - x
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_x+1
+        sta     gfx_x0+1
+        ; x1 = cx + x
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_x
+        sta     gfx_x1
+        lda     gfx_cx+1
+        adc     gfx_circ_x+1
+        sta     gfx_x1+1
+        ; Set y1 = y0 for horizontal line
+        lda     gfx_y0
+        sta     gfx_y1
+        lda     gfx_y0+1
+        sta     gfx_y1+1
+        jsr     draw_hline
+@skip_line1:
+
+        ; Line 2: horizontal line at cy - y, from cx-x to cx+x
+        lda     gfx_cy
+        sec
+        sbc     gfx_circ_y
+        bcc     @skip_line2         ; Y underflow
+        sta     gfx_y0
+        lda     #0
+        sta     gfx_y0+1
+        ; x0 = cx - x
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_x+1
+        sta     gfx_x0+1
+        ; x1 = cx + x
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_x
+        sta     gfx_x1
+        lda     gfx_cx+1
+        adc     gfx_circ_x+1
+        sta     gfx_x1+1
+        ; Set y1 = y0
+        lda     gfx_y0
+        sta     gfx_y1
+        lda     gfx_y0+1
+        sta     gfx_y1+1
+        jsr     draw_hline
+@skip_line2:
+
+        ; Line 3: horizontal line at cy + x, from cx-y to cx+y
+        lda     gfx_cy
+        clc
+        adc     gfx_circ_x          ; x offset low byte
+        bcs     @skip_line3         ; Y overflow
+        sta     gfx_y0
+        lda     #0
+        sta     gfx_y0+1
+        ; x0 = cx - y
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_y
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_y+1
+        sta     gfx_x0+1
+        ; x1 = cx + y
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_y
+        sta     gfx_x1
+        lda     gfx_cx+1
+        adc     gfx_circ_y+1
+        sta     gfx_x1+1
+        ; Set y1 = y0
+        lda     gfx_y0
+        sta     gfx_y1
+        lda     gfx_y0+1
+        sta     gfx_y1+1
+        jsr     draw_hline
+@skip_line3:
+
+        ; Line 4: horizontal line at cy - x, from cx-y to cx+y
+        lda     gfx_cy
+        sec
+        sbc     gfx_circ_x          ; x offset low byte
+        bcc     @skip_line4         ; Y underflow
+        sta     gfx_y0
+        lda     #0
+        sta     gfx_y0+1
+        ; x0 = cx - y
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_y
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_y+1
+        sta     gfx_x0+1
+        ; x1 = cx + y
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_y
+        sta     gfx_x1
+        lda     gfx_cx+1
+        adc     gfx_circ_y+1
+        sta     gfx_x1+1
+        ; Set y1 = y0
+        lda     gfx_y0
+        sta     gfx_y1
+        lda     gfx_y0+1
+        sta     gfx_y1+1
+        jsr     draw_hline
+@skip_line4:
+
+        ; Restore outline color
+        pla
+        sta     gfx_color
+        rts
+
+; =============================================================================
+; Plot 8 symmetric points for circle at (cx,cy) with offsets (x,y)
+; Points: (cx+x,cy+y), (cx-x,cy+y), (cx+x,cy-y), (cx-x,cy-y)
+;         (cx+y,cy+x), (cx-y,cy+x), (cx+y,cy-x), (cx-y,cy-x)
+; Y subtractions must check for underflow since Y is 8-bit
+; =============================================================================
+circle_plot_octants:
+        ; Point 1: (cx + x, cy + y)
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_x
+        sta     gfx_x0
+        lda     gfx_cx+1
+        adc     gfx_circ_x+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        clc
+        adc     gfx_circ_y
+        bcs     @skip1              ; Y overflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip1:
+
+        ; Point 2: (cx - x, cy + y)
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_x+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        clc
+        adc     gfx_circ_y
+        bcs     @skip2              ; Y overflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip2:
+
+        ; Point 3: (cx + x, cy - y)
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_x
+        sta     gfx_x0
+        lda     gfx_cx+1
+        adc     gfx_circ_x+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        sec
+        sbc     gfx_circ_y
+        bcc     @skip3              ; Y underflow (went negative), skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip3:
+
+        ; Point 4: (cx - x, cy - y)
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_x
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_x+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        sec
+        sbc     gfx_circ_y
+        bcc     @skip4              ; Y underflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip4:
+
+        ; Point 5: (cx + y, cy + x) - swap x,y offsets
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_y
+        sta     gfx_x0
+        lda     gfx_cx+1
+        adc     gfx_circ_y+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        clc
+        adc     gfx_circ_x          ; X offset low byte for Y coord
+        bcs     @skip5              ; Y overflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip5:
+
+        ; Point 6: (cx - y, cy + x)
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_y
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_y+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        clc
+        adc     gfx_circ_x
+        bcs     @skip6              ; Y overflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip6:
+
+        ; Point 7: (cx + y, cy - x)
+        lda     gfx_cx
+        clc
+        adc     gfx_circ_y
+        sta     gfx_x0
+        lda     gfx_cx+1
+        adc     gfx_circ_y+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        sec
+        sbc     gfx_circ_x
+        bcc     @skip7              ; Y underflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip7:
+
+        ; Point 8: (cx - y, cy - x)
+        lda     gfx_cx
+        sec
+        sbc     gfx_circ_y
+        sta     gfx_x0
+        lda     gfx_cx+1
+        sbc     gfx_circ_y+1
+        sta     gfx_x0+1
+        lda     gfx_cy
+        sec
+        sbc     gfx_circ_x
+        bcc     @skip8              ; Y underflow, skip
+        sta     gfx_y0
+        jsr     circle_plot_point
+@skip8:
+
+        rts
+
+; =============================================================================
+; Plot single point for circle (with bounds checking)
+; Uses gfx_x0 (16-bit) and gfx_y0 (8-bit low byte only)
+; Coordinates may be negative (from subtraction) - high byte $80-$FF = negative
+; =============================================================================
+circle_plot_point:
+        ; Check X bounds: 0 <= x < 320
+        ; X is 16-bit signed - high byte >= $80 means negative
+        lda     gfx_x0+1
+        cmp     #$80
+        bcs     @skip               ; X negative (high byte >= $80)
+        ; Now check if X < 320
+        cmp     #1
+        bcc     @x_ok               ; X high byte = 0, X < 256
+        bne     @skip               ; X high byte > 1, X >= 512
+        lda     gfx_x0
+        cmp     #64                 ; Check if X >= 320 (256+64)
+        bcs     @skip
+@x_ok:
+        ; Check Y bounds: 0 <= y < 240
+        ; Y could have wrapped negative (e.g., 120-160 = -40 = $D8)
+        ; Values $80-$FF are negative, $00-$EF are valid (0-239)
+        lda     gfx_y0
+        cmp     #240
+        bcs     @skip               ; Y >= 240 (includes negative $80-$FF)
+
+        ; Plot the pixel
+        lda     #PIXEL_POS
+        sta     VIDEO_INSTR
+        lda     gfx_x0+1
+        sta     VIDEO_ARG0          ; X high
+        lda     gfx_x0
+        sta     VIDEO_ARG1          ; X low
+        lda     #0
+        sta     VIDEO_ARG2          ; Y high = 0
+        lda     gfx_y0
+        sta     VIDEO_ARG3          ; Y low
+
+        jsr     video_wait_ready
+
+        lda     #WRITE_PIXEL
+        sta     VIDEO_INSTR
+        lda     gfx_color
+        sta     VIDEO_ARG0
+
+@skip:
         rts
 
 ; =============================================================================

@@ -50,10 +50,11 @@
 		keyword_rts "SCR", SCREEN_CMD
 		keyword_rts "CLS", CLS_CMD
 		keyword_rts "CLR", COLOR_CMD
-		keyword_rts "PSET", PSET_CMD
+		keyword_rts "PS", PSET_CMD
 		keyword_rts "LOC", LOCATE_CMD
-		keyword_rts "LINE", LINE_CMD
+		keyword_rts "LN", LINE_CMD
 		keyword_rts "BOX", BOX_CMD
+		keyword_rts "CIR", CIRCLE_CMD
 .endif
 .endif
 .ifdef CONFIG_CBM_ALL
