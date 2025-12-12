@@ -255,6 +255,8 @@ PROCESS_INPUT_ITEM:
         jsr     MONRDKEY2
   .elseif .def(AIM65)
         jsr     MONRDKEY2
+  .elseif .def(WAFFLE2E)
+        jsr     MONGETKEY       ; Non-echoing single key input for GET
   .else
         jsr     MONRDKEY
   .endif
@@ -284,6 +286,8 @@ PROCESS_INPUT_ITEM:
   .endif
   .if .def(CONFIG_2) && (!.def(CONFIG_NO_INPUTBUFFER_ZP))
         beq     L2AF8	; always
+  .elseif .def(WAFFLE2E)
+        beq     L2AF8	; always (INPUTBUFFER in ZP, Y=0 after ldy #>($12-1))
   .else
         bne     L2AF8	; always
   .endif
