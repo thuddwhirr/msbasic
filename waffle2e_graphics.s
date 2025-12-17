@@ -148,18 +148,39 @@ PSET_CMD:
         rts
 
 ; =============================================================================
-; LOC row,col - Set text cursor position
-; Usage: LOC 10,20
+; LOC col,row[,cursor] - Set text cursor position with optional cursor control
+; Usage: LOC 10,20 or LOC 10,20,0 (hide) or LOC 10,20,1 (show) or LOC 10,20,2 (blink)
+; cursor: 0=off, 1=on (no blink), 2=on with blink
 ; =============================================================================
 LOCATE_CMD:
-        jsr     GETBYT              ; Get row in X
-        phx                         ; Save row
-        jsr     CHKCOM              ; Skip comma
         jsr     GETBYT              ; Get column in X
-        txa                         ; Column to A
-        ply                         ; Row to Y
-        ; A = column (X), Y = row
+        phx                         ; Save column
+        jsr     CHKCOM              ; Skip comma
+        jsr     GETBYT              ; Get row in X
+        txa                         ; Row to A
+        tay                         ; Row to Y
+        pla                         ; Column to A
+        ; A = column, Y = row
         jsr     video_set_text_position
+
+        ; Check for optional cursor parameter
+        jsr     CHRGOT
+        cmp     #','
+        bne     @done
+        jsr     CHRGET              ; Skip comma
+        jsr     GETBYT              ; Get cursor mode in X
+        ; X: 0=off, 1=on, 2=blink
+        lda     VIDEO_MODE
+        and     #$9F                ; Clear bits 5,6 (cursor enable, blink)
+        cpx     #0
+        beq     @set_mode           ; cursor off
+        ora     #$20                ; Set bit 5 (cursor enable)
+        cpx     #2
+        bne     @set_mode
+        ora     #$40                ; Set bit 6 (blink enable)
+@set_mode:
+        sta     VIDEO_MODE
+@done:
         rts
 
 ; =============================================================================
@@ -1309,9 +1330,11 @@ circle_plot_point:
         rts
 
 ; =============================================================================
-; Stubs for commands not currently in keyword table
+; ATT n - Set text attribute (color palette index 0-255)
 ; =============================================================================
 ATTR_CMD:
+        jsr     GETBYT              ; Get color value in X
+        stx     text_attributes     ; Store directly
         rts
 
 HLINE_CMD:
@@ -1324,14 +1347,37 @@ PALETTE_CMD:
         rts
 
 ; Function stubs - return 0
+; =============================================================================
+; PT(x,y) - Get pixel color at coordinates
+; Returns color value at (x,y), or 0 if out of bounds
+; =============================================================================
 POINT_FN:
+        ; Parse (x,y) - PARCHK handles opening paren and first expression
+        jsr     PARCHK              ; Evaluate x, check for ( and )
+        ; Actually we need two args. Let's do it manually:
+        ; The eval system already evaluated something, we need to back up
+        ; For now, return 0 as stub
         ldy     #0
         jmp     SNGFLT
 
+; =============================================================================
+; CY(n) - Get cursor row (line) position
+; Argument is ignored (for compatibility with POS(0) style)
+; Returns cursor Y position (0-29 for 30 line display)
+; =============================================================================
 CSRLIN_FN:
-        ldy     #0
+        jsr     PARCHK              ; Consume argument (ignored)
+        ; TODO: Read from video controller when GetCursorPos implemented
+        ldy     #0                  ; Stub: return 0
         jmp     SNGFLT
 
+; =============================================================================
+; CX(n) - Get cursor column position
+; Argument is ignored (for compatibility with POS(0) style)
+; Returns cursor X position (0-79 for 80 column display)
+; =============================================================================
 CSRCOL_FN:
-        ldy     #0
+        jsr     PARCHK              ; Consume argument (ignored)
+        ; TODO: Read from video controller when GetCursorPos implemented
+        ldy     #0                  ; Stub: return 0
         jmp     SNGFLT

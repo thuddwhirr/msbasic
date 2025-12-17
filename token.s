@@ -41,11 +41,17 @@
 		keyword_rts "WAIT", WAIT
 .endif
 .ifndef KBD
+.ifdef WAFFLE2E
+		; Shortened Waffle2e commands to fit 256-byte keyword table
+		keyword_rts "LD", LOAD
+		keyword_rts "SV", SAVE
+		keyword_rts "FD", FEED
+		keyword_rts "Q", QUIT
+.else
 		keyword_rts "LOAD", LOAD
 		keyword_rts "SAVE", SAVE
+.endif
 .ifdef WAFFLE2E
-		keyword_rts "FEED", FEED
-		keyword_rts "QUIT", QUIT
 		; Graphics statements (short names to fit 256-byte keyword table limit)
 		keyword_rts "SCR", SCREEN_CMD
 		keyword_rts "CLS", CLS_CMD
@@ -55,6 +61,7 @@
 		keyword_rts "LN", LINE_CMD
 		keyword_rts "BOX", BOX_CMD
 		keyword_rts "CIR", CIRCLE_CMD
+		keyword_rts "ATT", ATTR_CMD
 .endif
 .endif
 .ifdef CONFIG_CBM_ALL
@@ -161,6 +168,13 @@ UNFNC_ATN:
 .ifndef CONFIG_NO_POKE
 		keyword_addr "PEEK", PEEK
 .endif
+;.ifdef WAFFLE2E
+;		; Graphics functions - MUST be before string functions (LEFT$, etc.)
+;		; Using 3-letter names (2-letter function names may not tokenize correctly)
+;		keyword_addr "GPT", POINT_FN
+;		keyword_addr "CPX", CSRCOL_FN
+;		keyword_addr "CPY", CSRLIN_FN
+;.endif
 		keyword_addr "LEN", LEN
 		keyword_addr "STR$", STR
 		keyword_addr "VAL", VAL
@@ -169,12 +183,6 @@ UNFNC_ATN:
 		keyword_addr "LEFT$", LEFTSTR, TOKEN_LEFTSTR
 		keyword_addr "RIGHT$", RIGHTSTR
 		keyword_addr "MID$", MIDSTR
-.ifdef WAFFLE2E
-		; Graphics functions - disabled due to 256-byte keyword table limit
-;		keyword_addr "POINT", POINT_FN
-;		keyword_addr "CSRLIN", CSRLIN_FN
-;		keyword_addr "CSRCOL", CSRCOL_FN
-.endif
 .ifdef CONFIG_2
 		keyword	"GO", TOKEN_GO
 .endif
