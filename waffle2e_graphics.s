@@ -1343,41 +1343,166 @@ HLINE_CMD:
 BOXF_CMD:
         rts
 
+; =============================================================================
+; PL index,r,g,b - Set palette entry (Mode 4 only)
+; index: 0-255 (palette slot)
+; r,g,b: 0-15 each (4-bit color components)
+; Usage: PL 0,15,0,0 (set entry 0 to bright red)
+; =============================================================================
 PALETTE_CMD:
+        ; Get palette index (0-255)
+        jsr     GETBYT              ; Index in X
+        phx                         ; Save index
+
+        ; Get R (0-15)
+        jsr     CHKCOM
+        jsr     GETBYT              ; R in X
+        cpx     #16
+        bcs     @bad_color          ; R > 15
+        phx                         ; Save R
+
+        ; Get G (0-15)
+        jsr     CHKCOM
+        jsr     GETBYT              ; G in X
+        cpx     #16
+        bcs     @bad_color_pop1     ; G > 15
+        phx                         ; Save G
+
+        ; Get B (0-15)
+        jsr     CHKCOM
+        jsr     GETBYT              ; B in X
+        cpx     #16
+        bcs     @bad_color_pop2     ; B > 15
+        stx     gfx_x0              ; Temp store B
+
+        ; Pack GB byte: G in high nibble, B in low nibble
+        pla                         ; Get G
+        asl
+        asl
+        asl
+        asl                         ; G << 4
+        ora     gfx_x0              ; | B
+        sta     gfx_x0              ; GB byte
+
+        ; Get R for 0R byte
+        pla                         ; Get R
+        sta     gfx_x0+1            ; 0R byte (R in low nibble)
+
+        ; Set palette entry
+        jsr     video_wait_ready    ; Wait BEFORE popping index
+
+        lda     #SET_PALETTE_ENTRY
+        sta     VIDEO_INSTR
+        pla                         ; Get index from stack
+        sta     VIDEO_ARG0
+        lda     gfx_x0              ; GB byte
+        sta     VIDEO_ARG1
+        lda     gfx_x0+1            ; 0R byte - triggers
+        sta     VIDEO_ARG2
         rts
 
-; Function stubs - return 0
-; =============================================================================
-; PT(x,y) - Get pixel color at coordinates
-; Returns color value at (x,y), or 0 if out of bounds
-; =============================================================================
-POINT_FN:
-        ; Parse (x,y) - PARCHK handles opening paren and first expression
-        jsr     PARCHK              ; Evaluate x, check for ( and )
-        ; Actually we need two args. Let's do it manually:
-        ; The eval system already evaluated something, we need to back up
-        ; For now, return 0 as stub
-        ldy     #0
-        jmp     SNGFLT
+@bad_color_pop2:
+        pla                         ; Discard G
+@bad_color_pop1:
+        pla                         ; Discard R
+@bad_color:
+        pla                         ; Discard index
+        jmp     IQERR               ; Illegal quantity error
 
 ; =============================================================================
-; CY(n) - Get cursor row (line) position
-; Argument is ignored (for compatibility with POS(0) style)
-; Returns cursor Y position (0-29 for 30 line display)
+; XY x,y - Set read position for GDT function
+; x: 0-639 (16-bit), y: 0-479 (16-bit)
+; Works for both graphics pixel position and text row,col
+; Usage: XY 100,50 : PRINT GDT(1)  ' Read pixel at 100,50
+;        XY 20,10 : PRINT GDT(0)   ' Read char at col 20, row 10
 ; =============================================================================
-CSRLIN_FN:
-        jsr     PARCHK              ; Consume argument (ignored)
-        ; TODO: Read from video controller when GetCursorPos implemented
-        ldy     #0                  ; Stub: return 0
-        jmp     SNGFLT
+SETPOS_CMD:
+        ; Get X coordinate (16-bit)
+        jsr     FRMNUM              ; Evaluate X expression
+        jsr     GETADR              ; Convert to 16-bit in LINNUM
+        lda     LINNUM
+        sta     gfx_x0
+        lda     LINNUM+1
+        sta     gfx_x0+1
+
+        ; Get Y coordinate (16-bit)
+        jsr     CHKCOM              ; Expect ','
+        jsr     FRMNUM              ; Evaluate Y expression
+        jsr     GETADR              ; Convert to 16-bit in LINNUM
+        lda     LINNUM
+        sta     gfx_y0
+        lda     LINNUM+1
+        sta     gfx_y0+1
+        rts
 
 ; =============================================================================
-; CX(n) - Get cursor column position
-; Argument is ignored (for compatibility with POS(0) style)
-; Returns cursor X position (0-79 for 80 column display)
+; GDT(n) - Graphics Data Table lookup
+; n=0: Get character at (x=col, y=row) - text mode
+; n=1: Get pixel color at (x,y) - graphics mode
+; n=2: Get cursor row
+; n=3: Get cursor column
+; Usage: XY 20,10 : PRINT GDT(0)   ' Char at col 20, row 10
+;        XY 100,50 : PRINT GDT(1)  ' Pixel at x=100, y=50
+;        PRINT GDT(2)              ' Current cursor row
+;        PRINT GDT(3)              ' Current cursor column
 ; =============================================================================
-CSRCOL_FN:
-        jsr     PARCHK              ; Consume argument (ignored)
-        ; TODO: Read from video controller when GetCursorPos implemented
-        ldy     #0                  ; Stub: return 0
-        jmp     SNGFLT
+GETDATA_FN:
+        ; PARCHK already called by UNARY, argument in FAC
+        jsr     GETADR              ; Convert to integer in LINNUM
+        lda     LINNUM
+        beq     @get_char           ; 0 = get character
+        cmp     #1
+        beq     @get_pixel          ; 1 = get pixel
+        cmp     #2
+        beq     @get_cursor_row     ; 2 = cursor row
+        cmp     #3
+        beq     @get_cursor_col     ; 3 = cursor column
+        jmp     IQERR               ; Invalid argument
+
+@get_char:
+        ; GET_TEXT_AT: col in ARG0, row in ARG1
+        jsr     video_wait_ready
+        lda     #GET_TEXT_AT
+        sta     VIDEO_INSTR
+        lda     gfx_x0              ; Col (X position)
+        sta     VIDEO_ARG0
+        lda     gfx_y0              ; Row (Y position) - triggers
+        sta     VIDEO_ARG1
+        jmp     @read_result
+
+@get_pixel:
+        ; GET_PIXEL_AT: X high, X low, Y high, Y low
+        jsr     video_wait_ready
+        lda     #GET_PIXEL_AT
+        sta     VIDEO_INSTR
+        lda     gfx_x0+1            ; X high byte
+        sta     VIDEO_ARG0
+        lda     gfx_x0              ; X low byte
+        sta     VIDEO_ARG1
+        lda     gfx_y0+1            ; Y high byte
+        sta     VIDEO_ARG2
+        lda     gfx_y0              ; Y low byte - triggers
+        sta     VIDEO_ARG3
+        jmp     @read_result
+
+@get_cursor_row:
+        ; GET_CURSOR_POS with ARG0=0 returns row
+        jsr     video_wait_ready
+        lda     #GET_CURSOR_POS
+        sta     VIDEO_INSTR
+        lda     #0                  ; 0 = row - triggers
+        sta     VIDEO_ARG0
+        jmp     @read_result
+
+@get_cursor_col:
+        ; GET_CURSOR_POS with ARG0=1 returns column
+        jsr     video_wait_ready
+        lda     #GET_CURSOR_POS
+        sta     VIDEO_INSTR
+        lda     #1                  ; 1 = column - triggers
+        sta     VIDEO_ARG0
+
+@read_result:
+        jsr     video_wait_ready
+        ldy     VIDEO_RESULT0       ; Result in RESULT0 register
+        jmp     SNGFLT              ; Return as float

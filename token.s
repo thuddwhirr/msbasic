@@ -55,13 +55,15 @@
 		; Graphics statements (short names to fit 256-byte keyword table limit)
 		keyword_rts "SCR", SCREEN_CMD
 		keyword_rts "CLS", CLS_CMD
-		keyword_rts "CLR", COLOR_CMD
+		keyword_rts "CL", COLOR_CMD
 		keyword_rts "PS", PSET_CMD
-		keyword_rts "LOC", LOCATE_CMD
+		keyword_rts "LC", LOCATE_CMD
 		keyword_rts "LN", LINE_CMD
-		keyword_rts "BOX", BOX_CMD
-		keyword_rts "CIR", CIRCLE_CMD
-		keyword_rts "ATT", ATTR_CMD
+		keyword_rts "BX", BOX_CMD
+		keyword_rts "CR", CIRCLE_CMD
+		keyword_rts "AT", ATTR_CMD
+		keyword_rts "PL", PALETTE_CMD
+		keyword_rts "XY", SETPOS_CMD
 .endif
 .endif
 .ifdef CONFIG_CBM_ALL
@@ -168,13 +170,11 @@ UNFNC_ATN:
 .ifndef CONFIG_NO_POKE
 		keyword_addr "PEEK", PEEK
 .endif
-;.ifdef WAFFLE2E
-;		; Graphics functions - MUST be before string functions (LEFT$, etc.)
-;		; Using 3-letter names (2-letter function names may not tokenize correctly)
-;		keyword_addr "GPT", POINT_FN
-;		keyword_addr "CPX", CSRCOL_FN
-;		keyword_addr "CPY", CSRLIN_FN
-;.endif
+.ifdef WAFFLE2E
+		; Graphics function - uses position set by XY statement
+		; GD(0)=charAt, GD(1)=pixelAt
+		keyword_addr "GDT", GETDATA_FN
+.endif
 		keyword_addr "LEN", LEN
 		keyword_addr "STR$", STR
 		keyword_addr "VAL", VAL
