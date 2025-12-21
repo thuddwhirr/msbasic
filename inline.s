@@ -104,14 +104,14 @@ INLINAIM:
         beq     L2423
       .ifdef MICROTAN
         cmp     #$7F ; DEL
+        beq     L2420
       .elseif .def(WAFFLE2E)
-        ; Backspace/DEL already handled above, before < $20 filter
-        ; Keep underscore for compatibility
-        cmp     #$5F ; _
+        ; Backspace/DEL already handled above (lines 77-83), before < $20 filter
+        ; Do NOT check for underscore here - it would be treated as backspace!
       .else
         cmp     #$5F ; _
-      .endif
         beq     L2420
+      .endif
       .endif
 L2443:
       .ifdef MICROTAN
